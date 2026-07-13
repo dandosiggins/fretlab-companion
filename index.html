@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1C1917" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>FretLab Companion</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #1C1917; }
+      body {
+        background: repeating-linear-gradient(45deg, #191614, #191614 3px, #1C1917 3px, #1C1917 6px);
+        min-height: 100vh;
+        -webkit-tap-highlight-color: transparent;
+      }
+      input, select, textarea { font-size: 16px !important; } /* prevents iOS zoom-on-focus */
+      #root { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+      }
+    </script>
+  </body>
+</html>
