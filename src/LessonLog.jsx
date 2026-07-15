@@ -769,6 +769,119 @@ function LessonModal({ lesson, songs, thumbs, onSave, onCancel }) {
 }
 
 /* ---------- main module ---------- */
+/* ---------- read-only detail modals ---------- */
+function AttachmentRows({ owner, busyDoc, openDoc, openLightbox, thumbs }) {
+  return (
+    <>
+      {((owner.links || []).length > 0 || (owner.docs || []).length > 0) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}>
+          {(owner.links || []).map((l) => (
+            <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+              style={{ ...S.chip(false, "#2E86C1"), padding: "4px 10px", textDecoration: "none", color: "#8FBBDB" }}>
+              🔗 {l.label}
+            </a>
+          ))}
+          {(owner.docs || []).map((d) => (
+            <span key={d.id} onClick={(e) => { e.stopPropagation(); openDoc(d); }}
+              style={{ ...S.chip(false, "#D4A73B"), padding: "4px 10px", color: "#D9C58A" }}>
+              📄 {busyDoc === d.id ? "Loading…" : d.name}
+            </span>
+          ))}
+        </div>
+      )}
+      {(owner.photoIds || []).length > 0 && (
+        <div style={S.photoRow}>
+          {owner.photoIds.map((pid, idx) => (
+            thumbs[pid]
+              ? <img key={pid} src={thumbs[pid]} alt="attachment" style={S.photoThumb}
+                  onClick={() => openLightbox(owner.photoIds, idx)} />
+              : <div key={pid} style={S.photoPlaceholder} onClick={() => openLightbox(owner.photoIds, idx)}>
+                  photo<br />(tap to load)
+                </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function SongDetailModal({ song, lessons, thumbs, busyDoc, openDoc, openLightbox, onEdit, onClose }) {
+  const st = statusById[song.status] || STATUSES[0];
+  const history = lessons.filter((l) => l.songIds?.includes(song.id));
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={{ ...S.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ ...S.modalTitle, marginBottom: 2 }}>{song.title}</h2>
+        {song.artist && <div style={{ fontSize: 13, color: "#9C8F76" }}>{song.artist}</div>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 2px" }}>
+          <span style={S.statusPill(true, st.color)}>{st.label}</span>
+          {(song.tuning || song.key) && (
+            <span style={{ fontSize: 12, color: "#9C8F76" }}>{[song.tuning, song.key].filter(Boolean).join(" · ")}</span>
+          )}
+        </div>
+        {song.notes && (
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: "#C8BBA0", whiteSpace: "pre-wrap", margin: "10px 0 0" }}>{song.notes}</div>
+        )}
+        <AttachmentRows owner={song} busyDoc={busyDoc} openDoc={openDoc} openLightbox={openLightbox} thumbs={thumbs} />
+        {history.length > 0 && (
+          <>
+            <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7A6E58", margin: "16px 0 6px" }}>
+              Lesson history · {history.length}
+            </div>
+            {history.map((l) => (
+              <div key={l.id} style={{ fontSize: 12, color: "#9C8F76", padding: "5px 0", borderBottom: "1px solid #2E2823" }}>
+                <span style={{ color: "#D4A73B", fontWeight: 700 }}>{formatLessonDate(l.date)}</span>
+                {parseTechniques(l.techniques).length > 0 && <> — {parseTechniques(l.techniques).join(", ")}</>}
+              </div>
+            ))}
+          </>
+        )}
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button style={{ ...S.btn(true), flex: 1 }} onClick={onEdit}>Edit</button>
+          <button style={{ ...S.btn(false), flex: 1 }} onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LessonDetailModal({ lesson, songById, thumbs, busyDoc, openDoc, openLightbox, onEdit, onClose }) {
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={{ ...S.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ ...S.modalTitle, marginBottom: 8 }}>{formatLessonDate(lesson.date)}</h2>
+        {(lesson.songIds || []).length > 0 && (
+          <div style={{ marginBottom: 4 }}>
+            {lesson.songIds.map((id) => {
+              const s = songById[id];
+              if (!s) return null;
+              const st = statusById[s.status] || STATUSES[0];
+              return (
+                <span key={id} style={S.songChip(st.color)}>
+                  <span style={S.led(st.color, true)} /> {s.title}
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {parseTechniques(lesson.techniques).length > 0 && (
+          <div>
+            {parseTechniques(lesson.techniques).map((t) => (
+              <span key={t} style={S.techChip}>{t}</span>
+            ))}
+          </div>
+        )}
+        {lesson.notes && <div style={S.lessonNotes}>{lesson.notes}</div>}
+        <AttachmentRows owner={lesson} busyDoc={busyDoc} openDoc={openDoc} openLightbox={openLightbox} thumbs={thumbs} />
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button style={{ ...S.btn(true), flex: 1 }} onClick={onEdit}>Edit</button>
+          <button style={{ ...S.btn(false), flex: 1 }} onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LessonLog() {
   const [songs, setSongs] = useState([]);
   const [lessons, setLessons] = useState([]);
@@ -788,6 +901,8 @@ export default function LessonLog() {
     try { localStorage.setItem("fretlab-lessons-layout", m); } catch {}
   };
   const [editingSong, setEditingSong] = useState(null);
+  const [viewingSong, setViewingSong] = useState(null);
+  const [viewingLesson, setViewingLesson] = useState(null);
   const [editingLesson, setEditingLesson] = useState(null);
   const [lightbox, setLightbox] = useState(null); // {photoIds, index, loading}
   const mergedRef = useRef(false);
@@ -1226,9 +1341,9 @@ export default function LessonLog() {
               const nextSt = STATUSES[(STATUSES.findIndex((s) => s.id === st.id) + 1) % STATUSES.length];
               const nAtt = (song.links || []).length + (song.docs || []).length + (song.photoIds || []).length;
               return (
-                <div key={song.id} style={S.listRow}>
+                <div key={song.id} style={{ ...S.listRow, cursor: "pointer" }} onClick={() => setViewingSong(song.id)}>
                   <span style={S.statusPill(true, st.color)} title={`Tap to move to ${nextSt.label}`}
-                    onClick={() => quickStatus(song, nextSt.id)}>{st.label}</span>
+                    onClick={(e) => { e.stopPropagation(); quickStatus(song, nextSt.id); }}>{st.label}</span>
                   <div style={{ flex: "2 1 160px", minWidth: 140 }}>
                     <div style={{ fontWeight: 700, color: "#F0E8D2", fontSize: 14 }}>{song.title}</div>
                     {song.artist && <div style={{ fontSize: 11, color: "#9C8F76" }}>{song.artist}</div>}
@@ -1241,8 +1356,8 @@ export default function LessonLog() {
                     {nAtt > 0 ? `${count > 0 ? " · " : ""}${nAtt} attachment${nAtt !== 1 ? "s" : ""}` : ""}
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button style={S.smallBtn(false)} onClick={() => setEditingSong(song)}>Edit</button>
-                    <button style={S.smallBtn(true)} onClick={() => handleDeleteSong(song)}>×</button>
+                    <button style={S.smallBtn(false)} onClick={(e) => { e.stopPropagation(); setEditingSong(song); }}>Edit</button>
+                    <button style={S.smallBtn(true)} onClick={(e) => { e.stopPropagation(); handleDeleteSong(song); }}>×</button>
                   </div>
                 </div>
               );
@@ -1254,7 +1369,7 @@ export default function LessonLog() {
               const st = statusById[song.status] || STATUSES[0];
               const count = lessonCountFor(song.id);
               return (
-                <div key={song.id} style={S.songCard}>
+                <div key={song.id} style={{ ...S.songCard, cursor: "pointer" }} onClick={() => setViewingSong(song.id)}>
                   <h3 style={S.songTitle}>{song.title}</h3>
                   {song.artist && <div style={S.meta}>{song.artist}</div>}
                   {(song.tuning || song.key) && (
@@ -1262,7 +1377,7 @@ export default function LessonLog() {
                   )}
                   <div style={S.statusRow}>
                     {STATUSES.map((s) => (
-                      <span key={s.id} style={S.statusPill(song.status === s.id, s.color)} onClick={() => quickStatus(song, s.id)}>
+                      <span key={s.id} style={S.statusPill(song.status === s.id, s.color)} onClick={(e) => { e.stopPropagation(); quickStatus(song, s.id); }}>
                         {s.label}
                       </span>
                     ))}
@@ -1272,13 +1387,13 @@ export default function LessonLog() {
                   {((song.links || []).length > 0 || (song.docs || []).length > 0) && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4 }}>
                       {(song.links || []).map((l) => (
-                        <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
+                        <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                           style={{ ...S.chip(false, "#2E86C1"), padding: "4px 10px", textDecoration: "none", color: "#8FBBDB" }}>
                           🔗 {l.label}
                         </a>
                       ))}
                       {(song.docs || []).map((d) => (
-                        <span key={d.id} onClick={() => openDoc(d)}
+                        <span key={d.id} onClick={(e) => { e.stopPropagation(); openDoc(d); }}
                           style={{ ...S.chip(false, "#D4A73B"), padding: "4px 10px", color: "#D9C58A" }}>
                           📄 {busyDoc === d.id ? "Loading…" : d.name}
                         </span>
@@ -1290,16 +1405,16 @@ export default function LessonLog() {
                       {song.photoIds.map((pid, idx) => (
                         thumbs[pid]
                           ? <img key={pid} src={thumbs[pid]} alt="song reference" style={S.photoThumb}
-                              onClick={() => openLightbox(song.photoIds, idx)} />
-                          : <div key={pid} style={S.photoPlaceholder} onClick={() => openLightbox(song.photoIds, idx)}>
+                              onClick={(e) => { e.stopPropagation(); openLightbox(song.photoIds, idx); }} />
+                          : <div key={pid} style={S.photoPlaceholder} onClick={(e) => { e.stopPropagation(); openLightbox(song.photoIds, idx); }}>
                               photo<br />(tap to load)
                             </div>
                       ))}
                     </div>
                   )}
                   <div style={S.cardActions}>
-                    <button style={S.smallBtn(false)} onClick={() => setEditingSong(song)}>Edit</button>
-                    <button style={S.smallBtn(true)} onClick={() => handleDeleteSong(song)}>Remove</button>
+                    <button style={S.smallBtn(false)} onClick={(e) => { e.stopPropagation(); setEditingSong(song); }}>Edit</button>
+                    <button style={S.smallBtn(true)} onClick={(e) => { e.stopPropagation(); handleDeleteSong(song); }}>Remove</button>
                   </div>
                 </div>
               );
@@ -1323,7 +1438,7 @@ export default function LessonLog() {
               const techs = parseTechniques(lesson.techniques).join(", ");
               const nPhotos = (lesson.photoIds || []).length;
               return (
-                <div key={lesson.id} style={S.listRow}>
+                <div key={lesson.id} style={{ ...S.listRow, cursor: "pointer" }} onClick={() => setViewingLesson(lesson.id)}>
                   <span style={{ ...S.lessonDate, fontSize: 13, flex: "0 0 auto" }}>{formatLessonDate(lesson.date)}</span>
                   <div style={{ flex: "2 1 160px", minWidth: 140, fontSize: 13, color: "#F0E8D2", fontWeight: 600 }}>
                     {titles || <span style={{ color: "#7A6E58", fontWeight: 400 }}>no songs tagged</span>}
@@ -1331,8 +1446,8 @@ export default function LessonLog() {
                   <div style={{ flex: "2 1 140px", fontSize: 11, color: "#9C8F76" }}>{techs}</div>
                   <div style={{ flex: "0 0 auto", fontSize: 11, color: "#7A6E58" }}>{nPhotos > 0 ? `📷 ${nPhotos}` : ""}</div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button style={S.smallBtn(false)} onClick={() => setEditingLesson(lesson)}>Edit</button>
-                    <button style={S.smallBtn(true)} onClick={() => handleDeleteLesson(lesson)}>×</button>
+                    <button style={S.smallBtn(false)} onClick={(e) => { e.stopPropagation(); setEditingLesson(lesson); }}>Edit</button>
+                    <button style={S.smallBtn(true)} onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson); }}>×</button>
                   </div>
                 </div>
               );
@@ -1341,12 +1456,12 @@ export default function LessonLog() {
         ) : (
           <div style={S.timeline}>
             {visibleLessons.map((lesson) => (
-              <div key={lesson.id} style={S.lessonCard}>
+              <div key={lesson.id} style={{ ...S.lessonCard, cursor: "pointer" }} onClick={() => setViewingLesson(lesson.id)}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
                   <span style={S.lessonDate}>{formatLessonDate(lesson.date)}</span>
                   <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                    <button style={{ ...S.smallBtn(false), flex: "none", padding: "4px 12px" }} onClick={() => setEditingLesson(lesson)}>Edit</button>
-                    <button style={{ ...S.smallBtn(true), flex: "none", padding: "4px 12px" }} onClick={() => handleDeleteLesson(lesson)}>Delete</button>
+                    <button style={{ ...S.smallBtn(false), flex: "none", padding: "4px 12px" }} onClick={(e) => { e.stopPropagation(); setEditingLesson(lesson); }}>Edit</button>
+                    <button style={{ ...S.smallBtn(true), flex: "none", padding: "4px 12px" }} onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson); }}>Delete</button>
                   </span>
                 </div>
 
@@ -1378,13 +1493,13 @@ export default function LessonLog() {
                 {((lesson.links || []).length > 0 || (lesson.docs || []).length > 0) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}>
                     {(lesson.links || []).map((l) => (
-                      <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
+                      <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                         style={{ ...S.chip(false, "#2E86C1"), padding: "4px 10px", textDecoration: "none", color: "#8FBBDB" }}>
                         🔗 {l.label}
                       </a>
                     ))}
                     {(lesson.docs || []).map((d) => (
-                      <span key={d.id} onClick={() => openDoc(d)}
+                      <span key={d.id} onClick={(e) => { e.stopPropagation(); openDoc(d); }}
                         style={{ ...S.chip(false, "#D4A73B"), padding: "4px 10px", color: "#D9C58A" }}>
                         📄 {busyDoc === d.id ? "Loading…" : d.name}
                       </span>
@@ -1397,8 +1512,8 @@ export default function LessonLog() {
                     {lesson.photoIds.map((pid, idx) => (
                       thumbs[pid]
                         ? <img key={pid} src={thumbs[pid]} alt="whiteboard" style={S.photoThumb}
-                            onClick={() => openLightbox(lesson.photoIds, idx)} />
-                        : <div key={pid} style={S.photoPlaceholder} onClick={() => openLightbox(lesson.photoIds, idx)}>
+                            onClick={(e) => { e.stopPropagation(); openLightbox(lesson.photoIds, idx); }} />
+                        : <div key={pid} style={S.photoPlaceholder} onClick={(e) => { e.stopPropagation(); openLightbox(lesson.photoIds, idx); }}>
                             whiteboard<br />(tap to load)
                           </div>
                     ))}
@@ -1428,6 +1543,28 @@ export default function LessonLog() {
           </div>
         </div>
       )}
+
+      {/* ---- detail modals ---- */}
+      {viewingSong && (() => {
+        const s = songs.find((x) => x.id === viewingSong);
+        if (!s) return null;
+        return (
+          <SongDetailModal song={s} lessons={lessons} thumbs={thumbs} busyDoc={busyDoc}
+            openDoc={openDoc} openLightbox={openLightbox}
+            onEdit={() => { setEditingSong(s); setViewingSong(null); }}
+            onClose={() => setViewingSong(null)} />
+        );
+      })()}
+      {viewingLesson && (() => {
+        const l = lessons.find((x) => x.id === viewingLesson);
+        if (!l) return null;
+        return (
+          <LessonDetailModal lesson={l} songById={songById} thumbs={thumbs} busyDoc={busyDoc}
+            openDoc={openDoc} openLightbox={openLightbox}
+            onEdit={() => { setEditingLesson(l); setViewingLesson(null); }}
+            onClose={() => setViewingLesson(null)} />
+        );
+      })()}
 
       {/* ---- modals ---- */}
       {editingSong && (
