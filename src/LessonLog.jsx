@@ -237,6 +237,12 @@ const S = {
     maxWidth: 1080, margin: "18px auto 0", padding: "0 20px",
     display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 14,
   },
+  listWrap: { maxWidth: 1080, margin: "16px auto 0", padding: "0 20px" },
+  listRow: {
+    display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+    padding: "9px 14px", marginBottom: 6,
+    background: "#241F1C", border: "1px solid #3B342C", borderRadius: 8,
+  },
   songCard: {
     background: "#262120", border: "1px solid #3B342C", borderRadius: 8,
     padding: "14px 16px", display: "flex", flexDirection: "column", gap: 6,
@@ -773,6 +779,14 @@ export default function LessonLog() {
   const [view, setView] = useState("lessons"); // lessons | songs
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(null);
+  const [techFilter, setTechFilter] = useState(null);
+  const [layout, setLayout] = useState(() => {
+    try { return localStorage.getItem("fretlab-lessons-layout") || "cards"; } catch { return "cards"; }
+  });
+  const setLayoutMode = (m) => {
+    setLayout(m);
+    try { localStorage.setItem("fretlab-lessons-layout", m); } catch {}
+  };
   const [editingSong, setEditingSong] = useState(null);
   const [editingLesson, setEditingLesson] = useState(null);
   const [lightbox, setLightbox] = useState(null); // {photoIds, index, loading}
@@ -1112,12 +1126,24 @@ export default function LessonLog() {
 
   const visibleLessons = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return lessons;
     return lessons.filter((l) => {
+      if (techFilter && !parseTechniques(l.techniques).some((t) => t.toLowerCase() === techFilter)) return false;
+      if (!q) return true;
       const songText = (l.songIds || []).map((id) => songById[id]?.title || "").join(" ");
       return [l.notes, l.techniques, l.date, songText].some((f) => (f || "").toLowerCase().includes(q));
     });
-  }, [lessons, search, songById]);
+  }, [lessons, search, songById, techFilter]);
+
+  const allTechs = useMemo(() => {
+    const m = new Map();
+    lessons.forEach((l) =>
+      parseTechniques(l.techniques).forEach((t) => {
+        const k = t.toLowerCase();
+        m.set(k, { label: t, count: (m.get(k)?.count || 0) + 1 });
+      })
+    );
+    return [...m.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 12);
+  }, [lessons]);
 
   const lessonCountFor = (songId) => lessons.filter((l) => l.songIds?.includes(songId)).length;
 
@@ -1160,6 +1186,28 @@ export default function LessonLog() {
             })}
           </>
         )}
+        {view === "lessons" && allTechs.length > 0 && (
+          <>
+            <span style={S.chip(techFilter === null, "#D4A73B")} onClick={() => setTechFilter(null)}>
+              <span style={S.led("#D4A73B", techFilter === null)} /> All
+            </span>
+            {allTechs.map(([k, t]) => {
+              const active = techFilter === k;
+              return (
+                <span key={k} style={S.chip(active, "#8E44AD")} onClick={() => setTechFilter(active ? null : k)}>
+                  <span style={S.led("#8E44AD", active)} /> {t.label}
+                  <span style={{ color: "#6E6250", fontSize: 11 }}>{t.count}</span>
+                </span>
+              );
+            })}
+          </>
+        )}
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          <button style={S.viewToggle(layout === "cards")} onClick={() => setLayoutMode("cards")}>
+            {view === "songs" ? "⊞ Cards" : "⊞ Timeline"}
+          </button>
+          <button style={S.viewToggle(layout === "list")} onClick={() => setLayoutMode("list")}>≡ List</button>
+        </span>
       </div>
 
       {/* ---- SONGS VIEW ---- */}
@@ -1169,6 +1217,36 @@ export default function LessonLog() {
             {songs.length === 0
               ? <>No songs yet.<br />Hit <strong style={{ color: "#D4A73B" }}>+ Add song</strong> when your teacher hands you the next one.</>
               : "Nothing matches that search or filter."}
+          </div>
+        ) : layout === "list" ? (
+          <div style={S.listWrap}>
+            {visibleSongs.map((song) => {
+              const st = statusById[song.status] || STATUSES[0];
+              const count = lessonCountFor(song.id);
+              const nextSt = STATUSES[(STATUSES.findIndex((s) => s.id === st.id) + 1) % STATUSES.length];
+              const nAtt = (song.links || []).length + (song.docs || []).length + (song.photoIds || []).length;
+              return (
+                <div key={song.id} style={S.listRow}>
+                  <span style={S.statusPill(true, st.color)} title={`Tap to move to ${nextSt.label}`}
+                    onClick={() => quickStatus(song, nextSt.id)}>{st.label}</span>
+                  <div style={{ flex: "2 1 160px", minWidth: 140 }}>
+                    <div style={{ fontWeight: 700, color: "#F0E8D2", fontSize: 14 }}>{song.title}</div>
+                    {song.artist && <div style={{ fontSize: 11, color: "#9C8F76" }}>{song.artist}</div>}
+                  </div>
+                  <div style={{ flex: "1 1 110px", fontSize: 12, color: "#9C8F76" }}>
+                    {[song.tuning, song.key].filter(Boolean).join(" · ")}
+                  </div>
+                  <div style={{ flex: "1 1 120px", fontSize: 11, color: "#7A6E58" }}>
+                    {count > 0 ? `${count} lesson${count !== 1 ? "s" : ""}` : ""}
+                    {nAtt > 0 ? `${count > 0 ? " · " : ""}${nAtt} attachment${nAtt !== 1 ? "s" : ""}` : ""}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button style={S.smallBtn(false)} onClick={() => setEditingSong(song)}>Edit</button>
+                    <button style={S.smallBtn(true)} onClick={() => handleDeleteSong(song)}>×</button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div style={S.grid}>
@@ -1237,6 +1315,28 @@ export default function LessonLog() {
             {lessons.length === 0
               ? <>No lessons logged yet.<br />After your next one, hit <strong style={{ color: "#D4A73B" }}>+ Log lesson</strong> — and photograph the whiteboard before it's erased.</>
               : "Nothing matches that search."}
+          </div>
+        ) : layout === "list" ? (
+          <div style={S.listWrap}>
+            {visibleLessons.map((lesson) => {
+              const titles = (lesson.songIds || []).map((id) => songById[id]?.title).filter(Boolean).join(", ");
+              const techs = parseTechniques(lesson.techniques).join(", ");
+              const nPhotos = (lesson.photoIds || []).length;
+              return (
+                <div key={lesson.id} style={S.listRow}>
+                  <span style={{ ...S.lessonDate, fontSize: 13, flex: "0 0 auto" }}>{formatLessonDate(lesson.date)}</span>
+                  <div style={{ flex: "2 1 160px", minWidth: 140, fontSize: 13, color: "#F0E8D2", fontWeight: 600 }}>
+                    {titles || <span style={{ color: "#7A6E58", fontWeight: 400 }}>no songs tagged</span>}
+                  </div>
+                  <div style={{ flex: "2 1 140px", fontSize: 11, color: "#9C8F76" }}>{techs}</div>
+                  <div style={{ flex: "0 0 auto", fontSize: 11, color: "#7A6E58" }}>{nPhotos > 0 ? `📷 ${nPhotos}` : ""}</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button style={S.smallBtn(false)} onClick={() => setEditingLesson(lesson)}>Edit</button>
+                    <button style={S.smallBtn(true)} onClick={() => handleDeleteLesson(lesson)}>×</button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div style={S.timeline}>
